@@ -37,7 +37,12 @@ document.addEventListener("DOMContentLoaded", () => {
         let participantsMarkup = "";
         if (Array.isArray(details.participants) && details.participants.length > 0) {
           const items = details.participants
-            .map((p) => `<li><span class="participant-badge">${escapeHtml(formatParticipant(p))}</span></li>`)
+            .map((p) =>
+              `<li>
+                 <span class="participant-badge">${escapeHtml(formatParticipant(p))}</span>
+                 <button class="remove-btn" data-activity="${escapeHtml(name)}" data-email="${escapeHtml(p)}" aria-label="Remove participant">&times;</button>
+               </li>`
+            )
             .join("");
           participantsMarkup = `
             <div class="participants" aria-live="polite">
@@ -127,6 +132,41 @@ document.addEventListener("DOMContentLoaded", () => {
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
+    }
+  });
+
+  // Delegate click events for participant remove buttons
+  activitiesList.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!target.matches(".remove-btn")) return;
+
+    const email = target.dataset.email;
+    const activity = target.dataset.activity;
+
+    if (!email || !activity) return;
+
+    // optimistic UI: disable button while request in progress
+    target.disabled = true;
+
+    try {
+      const resp = await fetch(
+        `/activities/${encodeURIComponent(activity)}/unregister?email=${encodeURIComponent(email)}`,
+        { method: "POST" }
+      );
+
+      const body = await resp.json().catch(() => ({}));
+
+      if (resp.ok) {
+        // refresh activities to update participants and availability
+        setTimeout(fetchActivities, 150);
+      } else {
+        console.error("Failed to unregister:", body);
+        // re-enable so user can try again
+        target.disabled = false;
+      }
+    } catch (err) {
+      console.error("Error unregistering participant:", err);
+      target.disabled = false;
     }
   });
 
